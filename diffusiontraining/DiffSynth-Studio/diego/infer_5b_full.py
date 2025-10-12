@@ -14,7 +14,7 @@ pipe = WanVideoPipeline.from_pretrained(
     ],
 )
 
-state_dict = load_state_dict("models/train/Wan2.2-TI2V-5B_full/epoch-1.safetensors")
+state_dict = load_state_dict("./models/train/Wan2.2-TI2V-5B_full/epoch-0.safetensors")
 pipe.dit.load_state_dict(state_dict)
 pipe.enable_vram_management()
 
