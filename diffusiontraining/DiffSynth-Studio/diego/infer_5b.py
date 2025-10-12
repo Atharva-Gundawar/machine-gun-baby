@@ -30,12 +30,12 @@ pipe.enable_vram_management()
 #     local_dir="./",
 #     allow_file_pattern=["data/examples/wan/cat_fightning.jpg"]
 # )
-input_image = Image.open("./data/examples/videotrain/images/double_pendulum_000.png").resize((512, 512))
+input_image = Image.open("./data/trainsmall/0000000.jpg").resize((512, 512))
 video = pipe(
-    prompt="double pendulum",
+    prompt="robotic arm stacks the red cube on the blue cube",
     seed=0, tiled=True,
     height=512, width=512,
     input_image=input_image,
     num_frames=100,
 )
-save_video(video, "video2.mp4", fps=15, quality=5)
+save_video(video, "baseline.mp4", fps=15, quality=5)

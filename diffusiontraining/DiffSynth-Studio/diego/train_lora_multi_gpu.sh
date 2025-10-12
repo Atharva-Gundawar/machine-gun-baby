@@ -8,12 +8,12 @@ export WANDB_PROJECT=pendulumdreamer
 
 
 accelerate launch --num_processes=4 train.py \
-  --dataset_base_path data/examples/videotrain \
-  --dataset_metadata_path data/examples/videotrain/metadata.csv \
+  --dataset_base_path data/trainsmall \
+  --dataset_metadata_path data/trainsmall/metadata.csv \
   --height 512 \
   --width 512 \
   --num_frames 97 \
-  --dataset_repeat 20 \
+  --dataset_repeat 1 \
   --model_id_with_origin_paths "Wan-AI/Wan2.2-TI2V-5B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.2-TI2V-5B:models_t5_umt5-xxl-enc-bf16.pth,Wan-AI/Wan2.2-TI2V-5B:Wan2.2_VAE.pth" \
   --learning_rate 1e-4 \
   --num_epochs 1 \

@@ -24,10 +24,10 @@ if not loras:
 pipe.load_lora(pipe.dit, str(loras[-1]), alpha=1.0)
 pipe.enable_vram_management()
 
-input_image = Image.open("data/examples/videotrain/images/double_pendulum_000.png").resize((512, 512))
+input_image = Image.open("./data/trainsmall/0000000.jpg").resize((512, 512))
 
 video = pipe(
-    prompt="double pendulum",
+    prompt="robotic arm picks up the red cube and drops it off the table",
     seed=0,
     tiled=True,
     height=512,
@@ -35,4 +35,4 @@ video = pipe(
     input_image=input_image,
     num_frames=100,
 )
-save_video(video, "video2_lora.mp4", fps=15, quality=5)
+save_video(video, "firstlora.mp4", fps=15, quality=5)
