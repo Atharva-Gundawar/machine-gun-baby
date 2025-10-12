@@ -38,6 +38,7 @@ DiffSynth-Studio/diego/data/**/*.gif
 DiffSynth-Studio/diego/data/**/*.webm
 DiffSynth-Studio/diego/data/examples/videotrain/images/
 DiffSynth-Studio/diego/data/examples/videotrain/videos/
+DiffSynth-Studio/diego/data/trainsmall/
 
 # Downloaded/model directories
 DiffSynth-Studio/models/
