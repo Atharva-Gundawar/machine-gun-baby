@@ -1,0 +1,48 @@
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments & editor settings
+.env
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+*.code-workspace
+
+# Checkpoints, weights, and large binaries
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+*.bin
+*.log
+
+# Generated media & datasets
+DiffSynth-Studio/diego/*.mp4
+DiffSynth-Studio/diego/*.gif
+DiffSynth-Studio/diego/video*.mp4
+DiffSynth-Studio/diego/data/**/*.mp4
+DiffSynth-Studio/diego/data/**/*.gif
+DiffSynth-Studio/diego/data/**/*.webm
+DiffSynth-Studio/diego/data/examples/videotrain/images/
+DiffSynth-Studio/diego/data/examples/videotrain/videos/
+
+# Downloaded/model directories
+DiffSynth-Studio/models/
+DiffSynth-Studio/diego/models/
+
+# Miscellaneous
+**/tmp/
+**/temp/
