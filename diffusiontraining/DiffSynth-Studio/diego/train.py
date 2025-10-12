@@ -22,7 +22,14 @@ class WanTrainingModule(DiffusionTrainingModule):
         super().__init__()
         # Load models
         model_configs = self.parse_model_configs(model_paths, model_id_with_origin_paths, enable_fp8_training=False)
-        self.pipe = WanVideoPipeline.from_pretrained(torch_dtype=torch.bfloat16, device="cpu", model_configs=model_configs)
+        local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("RANK", 0)))
+        if torch.cuda.is_available():
+            torch.cuda.set_device(local_rank)
+            device = f"cuda:{local_rank}"
+        else:
+            device = "cpu"
+        self.pipe = WanVideoPipeline.from_pretrained(torch_dtype=torch.bfloat16, device=device, model_configs=model_configs)
+        self.pipe.to(device)
         
         # Training mode
         self.switch_pipe_to_training_mode(
