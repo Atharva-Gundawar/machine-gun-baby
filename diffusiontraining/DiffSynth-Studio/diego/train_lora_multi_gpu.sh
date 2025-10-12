@@ -3,9 +3,6 @@ export NCCL_P2P_DISABLE=1
 export NCCL_SHM_DISABLE=1
 export NCCL_IB_DISABLE=1
 export NCCL_DEBUG=INFO
-export ACCELERATE_LOG_WITH=wandb
-export WANDB_PROJECT=pendulumdreamer
-
 
 accelerate launch --num_processes=4 train.py \
   --dataset_base_path data/trainsmall \
