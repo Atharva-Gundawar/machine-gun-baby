@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""Convert robot manipulation videos and metadata into a LoRA-ready JSON dataset."""
+"""Generate a simple LoRA-style dataset by sampling one timestep per episode."""
 
 import json
 import random
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 DEFAULT_PROMPT = "Give the end effector position and gripper action value as [x,y,z,a]."
 
-# Hard-coded configuration for dataset generation (no CLI arguments needed).
+# Hard-coded paths (adjust here if the layout changes).
 DIEGO_ROOT = Path(__file__).resolve().parent
 SOURCE_ROOT = (DIEGO_ROOT / "data" / "train").resolve()
 OUTPUT_ROOT = (DIEGO_ROOT / "data" / "robot_dataset_train").resolve()
-OUTPUT_JSON_NAME = "robot_train.json"
-PROMPT = DEFAULT_PROMPT
+IMAGES_ROOT = OUTPUT_ROOT / "images"
+OUTPUT_JSON = OUTPUT_ROOT / "robot_train.json"
 
 
-def load_entries(jsonl_path: Path) -> Tuple[float, List[dict]]:
-    """Load fps metadata and per-step entries from the jsonl file."""
+def load_samples(jsonl_path: Path) -> Tuple[float, List[dict]]:
+    """Return fps metadata and all valid action entries from a jsonl episode."""
     entries: List[dict] = []
     fps = 20.0
 
@@ -41,6 +41,7 @@ def load_entries(jsonl_path: Path) -> Tuple[float, List[dict]]:
         except (TypeError, ValueError):
             fps = 20.0
 
+        index = 0
         for raw_line in file:
             raw_line = raw_line.strip()
             if not raw_line:
@@ -50,7 +51,6 @@ def load_entries(jsonl_path: Path) -> Tuple[float, List[dict]]:
             except json.JSONDecodeError:
                 continue
 
-            step = obj.get("step")
             eef_pos = obj.get("eef_pos")
             action = obj.get("action")
             if eef_pos is None or action is None:
@@ -59,18 +59,43 @@ def load_entries(jsonl_path: Path) -> Tuple[float, List[dict]]:
                 continue
 
             entry = {
-                "index": len(entries),
-                "step": step,
+                "index": index,
+                "step": obj.get("step"),
+                "t_sec": obj.get("t_sec"),
                 "eef_pos": eef_pos[:3],
                 "gripper": action[-1],
             }
             entries.append(entry)
+            index += 1
 
     return fps, entries
 
 
-def extract_single_frame(video_path: Path, output_path: Path, frame_index: int) -> None:
-    """Extract a single frame with ffmpeg based on the zero-based frame index."""
+def compute_timestamp(entry: dict, fps: float) -> float:
+    """Derive a timestamp in seconds for the selected entry."""
+    timestamp: Optional[float] = entry.get("t_sec")
+    if timestamp is None:
+        step = entry.get("step")
+        if step is not None and fps > 0:
+            try:
+                timestamp = float(step) / fps
+            except (TypeError, ValueError):
+                timestamp = None
+        if timestamp is None and fps > 0:
+            timestamp = entry["index"] / fps
+    if timestamp is None:
+        timestamp = 0.0
+
+    try:
+        value = float(timestamp)
+    except (TypeError, ValueError):
+        value = 0.0
+
+    return max(value, 0.0)
+
+
+def extract_frame(video_path: Path, output_path: Path, timestamp: float) -> None:
+    """Grab a single frame from the video at the specified timestamp."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
@@ -79,112 +104,90 @@ def extract_single_frame(video_path: Path, output_path: Path, frame_index: int) 
         "-loglevel",
         "error",
         "-y",
+        "-ss",
+        f"{timestamp:.6f}",
         "-i",
         str(video_path),
-        "-vf",
-        f"select=eq(n\\,{frame_index})",
-        "-vframes",
+        "-frames:v",
         "1",
         str(output_path),
     ]
 
     result = subprocess.run(cmd, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed for {video_path} (exit code {result.returncode})")
-
-    if not output_path.exists():
-        raise RuntimeError(
-            f"Missing expected frame {output_path} after extracting {video_path}."
-        )
+    if result.returncode != 0 or not output_path.exists():
+        raise RuntimeError(f"Failed to extract frame from {video_path} at t={timestamp:.4f}s")
 
 
-def format_value(values: List[float]) -> str:
+def format_value(entry: dict) -> str:
+    values = entry["eef_pos"] + [entry["gripper"]]
     return "[" + ", ".join(f"{val:.6f}" for val in values) + "]"
 
 
 def main() -> int:
-    source_root = SOURCE_ROOT
-    output_root = OUTPUT_ROOT
-    images_root = output_root / "images"
-    dataset_path = output_root / OUTPUT_JSON_NAME
-
-    if not source_root.exists():
-        print(f"[ERROR] Source directory does not exist: {source_root}", file=sys.stderr)
+    if not SOURCE_ROOT.exists():
+        print(f"[ERROR] Source directory not found: {SOURCE_ROOT}", file=sys.stderr)
         return 1
 
-    output_root.mkdir(parents=True, exist_ok=True)
-    images_root.mkdir(parents=True, exist_ok=True)
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    IMAGES_ROOT.mkdir(parents=True, exist_ok=True)
 
-    jsonl_files = sorted(source_root.glob("*.jsonl"))
-
+    jsonl_files = sorted(SOURCE_ROOT.glob("*.jsonl"))
     if not jsonl_files:
-        print(f"[ERROR] No jsonl files found in {source_root}", file=sys.stderr)
+        print(f"[ERROR] No jsonl files in {SOURCE_ROOT}", file=sys.stderr)
         return 1
 
     records = []
     for idx, jsonl_path in enumerate(jsonl_files, start=1):
         video_id = jsonl_path.stem
-        video_path = source_root / f"{video_id}.mp4"
+        video_path = SOURCE_ROOT / f"{video_id}.mp4"
         if not video_path.exists():
             print(f"[WARN] Missing video for {jsonl_path}, skipping.", file=sys.stderr)
             continue
 
-        fps, entries = load_entries(jsonl_path)
-        if not entries:
-            print(f"[WARN] No valid entries in {jsonl_path}, skipping.", file=sys.stderr)
+        try:
+            fps, entries = load_samples(jsonl_path)
+        except ValueError as exc:
+            print(f"[WARN] {exc}", file=sys.stderr)
             continue
 
-        selected_entry = random.choice(entries)
-        frame_index = selected_entry["index"]
-        frames_dir = images_root / video_id
-        frame_filename = f"{video_id}_{frame_index:06d}.jpg"
-        frame_path = frames_dir / frame_filename
+        if not entries:
+            print(f"[WARN] No usable entries in {jsonl_path}, skipping.", file=sys.stderr)
+            continue
+
+        chosen = random.choice(entries)
+        timestamp = compute_timestamp(chosen, fps)
+
+        frame_dir = IMAGES_ROOT / video_id
+        frame_path = frame_dir / f"{video_id}.jpg"
 
         try:
-            extract_single_frame(
-                video_path=video_path,
-                output_path=frame_path,
-                frame_index=frame_index,
-            )
+            extract_frame(video_path, frame_path, timestamp)
         except RuntimeError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 1
 
-        output_value = format_value(selected_entry["eef_pos"] + [selected_entry["gripper"]])
-        relative_image = frame_path.relative_to(images_root)
-
         record = {
-            "id": f"{video_id}_{frame_index:06d}",
-            "image": str(relative_image).replace("\\", "/"),
+            "id": f"{video_id}_{chosen['index']:06d}",
+            "image": str(frame_path.relative_to(IMAGES_ROOT)).replace("\\", "/"),
             "conversations": [
-                {
-                    "from": "human",
-                    "value": "<image>\n" + PROMPT,
-                },
-                {
-                    "from": "gpt",
-                    "value": output_value,
-                },
+                {"from": "human", "value": "<image>\n" + DEFAULT_PROMPT},
+                {"from": "gpt", "value": format_value(chosen)},
             ],
         }
         records.append(record)
 
-        print(
-            f"[INFO] Processed {video_id} (frame {frame_index}) "
-            f"[{idx}/{len(jsonl_files)}]",
-            file=sys.stderr,
-        )
+        print(f"[INFO] Processed {video_id} [{idx}/{len(jsonl_files)}]", file=sys.stderr)
 
     if not records:
         print("[ERROR] No records were generated.", file=sys.stderr)
         return 1
 
-    with dataset_path.open("w", encoding="utf-8") as file:
+    with OUTPUT_JSON.open("w", encoding="utf-8") as file:
         json.dump(records, file, ensure_ascii=True)
 
     print(
-        f"[INFO] Wrote {len(records)} samples to {dataset_path} "
-        f"with images under {images_root}",
+        f"[INFO] Wrote {len(records)} samples to {OUTPUT_JSON} "
+        f"with images in {IMAGES_ROOT}",
         file=sys.stderr,
     )
     return 0

@@ -5,8 +5,8 @@ export NCCL_IB_DISABLE=1
 export NCCL_DEBUG=INFO
 
 accelerate launch --num_processes=4 train.py \
-  --dataset_base_path data/trainsmall \
-  --dataset_metadata_path data/trainsmall/metadata.csv \
+  --dataset_base_path data/train \
+  --dataset_metadata_path data/train/metadata.csv \
   --height 512 \
   --width 512 \
   --num_frames 97 \
@@ -19,4 +19,5 @@ accelerate launch --num_processes=4 train.py \
   --lora_base_model "dit" \
   --lora_target_modules "q,k,v,o,ffn.0,ffn.2" \
   --lora_rank 32 \
-  --extra_inputs "input_image"
+  --extra_inputs "input_image" \
+  --save_steps 1000 \
