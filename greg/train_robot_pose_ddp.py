@@ -4,7 +4,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=4 train_robot_pose_ddp.py \
   --data_root /workspace/data_wasteland/runs-full2/ \
   --epochs 20 \
   --workers 128 \
-  --per_device_batch 64 \
+  --per_device_batch 256 \
   --backbone resnet18 \
   --feat_dim 512 \
   --extract_workers 64 \
